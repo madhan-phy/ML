@@ -16,25 +16,28 @@ def process_images(image_files, threshold_value):
     sunspots = []
 
     for img_path in image_files:
-        img = Image.open(img_path).convert("L")  # Convert to grayscale
-        img_np = np.array(img)
+        try:
+            img = Image.open(img_path).convert("L")  # Convert to grayscale
+            img_np = np.array(img)
 
-        # Simple thresholding to detect sunspots (black dots)
-        img_np[img_np > threshold_value] = 255
-        img_np[img_np <= threshold_value] = 0
+            # Simple thresholding to detect sunspots (black dots)
+            img_np[img_np > threshold_value] = 255
+            img_np[img_np <= threshold_value] = 0
 
-        # Convert back to PIL image for display
-        img_processed = Image.fromarray(img_np)
+            # Convert back to PIL image for display
+            img_processed = Image.fromarray(img_np)
 
-        # Find sunspots (coordinates of black pixels)
-        y_coords, x_coords = np.where(img_np == 0)  # Black pixels
-        sunspots.extend(zip(x_coords, y_coords))
+            # Find sunspots (coordinates of black pixels)
+            y_coords, x_coords = np.where(img_np == 0)  # Black pixels
+            sunspots.extend(zip(x_coords, y_coords))
 
-        # Optionally, draw the sunspots on the processed image
-        for (x, y) in sunspots:
-            img_processed.putpixel((x, y), 255)  # Change black dots to white
+            # Optionally, draw the sunspots on the processed image
+            for (x, y) in sunspots:
+                img_processed.putpixel((x, y), 255)  # Change black dots to white
 
-        processed_images.append(img_processed)
+            processed_images.append(img_processed)
+        except Exception as e:
+            st.error(f"Error processing image {img_path}: {e}")
 
     return processed_images, sunspots
 
@@ -54,8 +57,8 @@ def download_and_extract_tar(tar_url):
             extracted_files = tar.getnames()
             st.write("Extracted files:", extracted_files)
 
-        # Return list of .jpg image paths
-        return [os.path.join("temp_images", f) for f in extracted_files if f.endswith('.jpg')]
+        # Return absolute paths for .jpg image files
+        return [os.path.abspath(os.path.join("temp_images", f)) for f in extracted_files if f.endswith('.jpg')]
     
     except Exception as e:
         st.error(f"Failed to retrieve or extract TAR file: {e}")
@@ -96,27 +99,30 @@ if st.button("Process Images"):
 
         # Slideshow for processed images
         st.subheader("Processed Images with Sunspots Marked")
-        image_index = st.slider("Select an image index:", 0, len(processed_images) - 1, 0)
-        st.image(processed_images[image_index], caption=f'Processed Image {image_index + 1}', use_column_width=True)
+        if processed_images:
+            image_index = st.slider("Select an image index:", 0, len(processed_images) - 1, 0)
+            st.image(processed_images[image_index], caption=f'Processed Image {image_index + 1}', use_column_width=True)
 
-        # Display sunspot information
-        st.write("### Detected Sunspots:")
-        for idx, (x, y) in enumerate(sunspots):
-            st.write(f"Sunspot {idx + 1}: Coordinates (X: {x}, Y: {y})")
+            # Display sunspot information
+            st.write("### Detected Sunspots:")
+            for idx, (x, y) in enumerate(sunspots):
+                st.write(f"Sunspot {idx + 1}: Coordinates (X: {x}, Y: {y})")
 
-        # If clustering is enabled, apply K-Means
-        if sunspots:
-            sunspot_coords = np.array(sunspots)
-            num_clusters = st.slider("Select number of clusters:", 1, 10, 3)
-            kmeans = KMeans(n_clusters=num_clusters)
-            clusters = kmeans.fit_predict(sunspot_coords)
+            # If clustering is enabled, apply K-Means
+            if sunspots:
+                sunspot_coords = np.array(sunspots)
+                num_clusters = st.slider("Select number of clusters:", 1, 10, 3)
+                kmeans = KMeans(n_clusters=num_clusters)
+                clusters = kmeans.fit_predict(sunspot_coords)
 
-            cluster_df = pd.DataFrame(sunspot_coords, columns=['X', 'Y'])
-            cluster_df['Cluster'] = clusters
+                cluster_df = pd.DataFrame(sunspot_coords, columns=['X', 'Y'])
+                cluster_df['Cluster'] = clusters
 
-            fig_cluster = px.scatter(cluster_df, x='X', y='Y', color='Cluster',
-                                      title='Sunspot Clusters',
-                                      labels={'X': 'X Coordinate', 'Y': 'Y Coordinate'})
-            st.plotly_chart(fig_cluster)
+                fig_cluster = px.scatter(cluster_df, x='X', y='Y', color='Cluster',
+                                          title='Sunspot Clusters',
+                                          labels={'X': 'X Coordinate', 'Y': 'Y Coordinate'})
+                st.plotly_chart(fig_cluster)
+        else:
+            st.error("No images processed. Please check the image files.")
     else:
         st.error("Please fetch images from GitHub before processing.")
