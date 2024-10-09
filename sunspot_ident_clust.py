@@ -28,16 +28,42 @@ def process_images(image_files, threshold_value):
             img_np[img_np > threshold_value] = 255
             img_np[img_np <= threshold_value] = 0
 
-            # Convert back to PIL image for display
-            img_processed = Image.fromarray(img_np)
+            # Create an edge-detected version
+            edges = np.zeros_like(img_np)
+            for y in range(1, img_np.shape[0] - 1):
+                for x in range(1, img_np.shape[1] - 1):
+                    # Simple Sobel-like edge detection
+                    gx = img_np[y-1, x+1] - img_np[y-1, x-1] + \
+                         2 * (img_np[y, x+1] - img_np[y, x-1]) + \
+                         img_np[y+1, x+1] - img_np[y+1, x-1]
 
-            # Find sunspots (coordinates of black pixels)
-            y_coords, x_coords = np.where(img_np == 0)  # Black pixels
+                    gy = img_np[y+1, x-1] - img_np[y-1, x-1] + \
+                         2 * (img_np[y+1, x] - img_np[y-1, x]) + \
+                         img_np[y+1, x+1] - img_np[y-1, x+1]
+
+                    edge_magnitude = np.sqrt(gx**2 + gy**2)
+                    edges[y, x] = 255 if edge_magnitude > 50 else 0  # Threshold to define edges
+
+            # Create a mask to exclude detected lines
+            mask = np.ones_like(img_np, dtype=bool)
+
+            # Check for potential lines in the edge-detected image
+            for y in range(edges.shape[0]):
+                for x in range(edges.shape[1]):
+                    if edges[y, x] == 255:  # Found an edge
+                        # Mark the surrounding pixels (adjust if needed)
+                        mask[max(0, y-1):min(y+2, mask.shape[0]), max(0, x-1):min(x+2, mask.shape[1])] = False
+
+            # Exclude pixels near the detected lines
+            img_np[~mask] = 255  # Set masked areas to white
+
+            # Find remaining sunspots
+            y_coords, x_coords = np.where(img_np == 0)  # Find remaining black pixels
             sunspots.extend(zip(x_coords, y_coords))
 
-            # Optionally, draw the sunspots on the processed image
+            img_processed = Image.fromarray(img_np)
             for (x, y) in sunspots:
-                img_processed.putpixel((x, y), 255)  # Change black dots to white
+                img_processed.putpixel((x, y), 255)  # Change sunspot pixels to white
 
             processed_images.append(img_processed)
             
@@ -81,9 +107,13 @@ def cleanup_temp_folder():
 # Streamlit app layout
 st.title("Solar Sunspot Analysis from Images")
 
-# Initialize a global variable to store image files
+# Initialize a global variable to store image files and processed images
 if 'image_files' not in st.session_state:
     st.session_state.image_files = []
+if 'processed_images' not in st.session_state:
+    st.session_state.processed_images = []
+if 'sunspots' not in st.session_state:
+    st.session_state.sunspots = []
 
 # Define the TAR file URL directly
 tar_url = "https://github.com/madhan-phy/ML/raw/a7c33130d06525558d75dc1da011372d82daaaad/solar-images/solar_pics.tar.gz"
@@ -106,44 +136,46 @@ threshold_value = st.slider("Select Threshold Value for Sunspot Detection:", 0, 
 
 if st.button("Process Images"):
     if st.session_state.image_files:  # Check if image_files is not empty
-        st.write("Image files to be processed:", st.session_state.image_files)  # Debugging statement
+        st.write("Processing images... Please wait.")
         
-        with st.spinner("Processing images..."):
-            processed_images, sunspots = process_images(st.session_state.image_files, threshold_value)
-            st.success("Image processing complete.")
+        # Process images
+        st.session_state.processed_images, st.session_state.sunspots = process_images(st.session_state.image_files, threshold_value)
+        st.success("Image processing complete.")
+        
+        # Initialize index for slider
+        st.session_state.current_image_index = 0
 
-        # Slideshow for processed images
-        st.subheader("Processed Images with Sunspots Marked")
-        if processed_images:
-            image_index = st.slider("Select an image index:", 0, len(processed_images) - 1, 0)
-            st.image(processed_images[image_index], caption=f'Processed Image {image_index + 1} of {len(processed_images)}', use_column_width=True)
+# Slider for image index
+if st.session_state.processed_images:
+    image_index = st.slider("Select an image index:", 0, len(st.session_state.processed_images) - 1, 0)
+    
+    # Display processed image
+    st.image(st.session_state.processed_images[image_index], caption=f'Processed Image {image_index + 1} of {len(st.session_state.processed_images)}', use_column_width=True)
 
-            # Display sunspot information
-            st.write("### Detected Sunspots:")
-            for idx, (x, y) in enumerate(sunspots):
-                st.write(f"Sunspot {idx + 1}: Coordinates (X: {x}, Y: {y}")
+    # Display sunspot information
+    st.write("### Detected Sunspots:")
+    for idx, (x, y) in enumerate(st.session_state.sunspots):
+        st.write(f"Sunspot {idx + 1}: Coordinates (X: {x}, Y: {y})")
 
-            # If clustering is enabled, apply K-Means
-            if sunspots:
-                sunspot_coords = np.array(sunspots)
-                num_clusters = st.slider("Select number of clusters:", 1, 10, 3)
-                
-                with st.spinner("Clustering sunspots..."):
-                    kmeans = KMeans(n_clusters=num_clusters)
-                    clusters = kmeans.fit_predict(sunspot_coords)
-                    st.success("Clustering complete.")
+    # If clustering is enabled, apply K-Means
+    if st.session_state.sunspots:
+        sunspot_coords = np.array(st.session_state.sunspots)
+        num_clusters = st.slider("Select number of clusters:", 1, 10, 3)
+        
+        with st.spinner("Clustering sunspots..."):
+            kmeans = KMeans(n_clusters=num_clusters)
+            clusters = kmeans.fit_predict(sunspot_coords)
+            st.success("Clustering complete.")
 
-                cluster_df = pd.DataFrame(sunspot_coords, columns=['X', 'Y'])
-                cluster_df['Cluster'] = clusters
+        cluster_df = pd.DataFrame(sunspot_coords, columns=['X', 'Y'])
+        cluster_df['Cluster'] = clusters
 
-                fig_cluster = px.scatter(cluster_df, x='X', y='Y', color='Cluster',
-                                          title='Sunspot Clusters',
-                                          labels={'X': 'X Coordinate', 'Y': 'Y Coordinate'})
-                st.plotly_chart(fig_cluster)
-        else:
-            st.error("No images processed. Please check the image files.")
-    else:
-        st.error("Please fetch images from GitHub before processing.")
+        fig_cluster = px.scatter(cluster_df, x='X', y='Y', color='Cluster',
+                                  title='Sunspot Clusters',
+                                  labels={'X': 'X Coordinate', 'Y': 'Y Coordinate'})
+        st.plotly_chart(fig_cluster)
+else:
+    st.error("Please fetch images from GitHub and process them first.")
 
 # Option to clean up the folder
 if st.button("Clean up image folder"):
