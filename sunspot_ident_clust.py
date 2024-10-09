@@ -10,12 +10,6 @@ import io
 from sklearn.cluster import KMeans
 import shutil
 
-# Function to download images from a URL
-def download_image(url):
-    response = requests.get(url)
-    img = Image.open(requests.get(url, stream=True).raw)
-    return img
-
 # Function to process images and mark sunspots
 def process_images(image_files, threshold_value):
     processed_images = []
@@ -44,10 +38,9 @@ def process_images(image_files, threshold_value):
 
     return processed_images, sunspots
 
-# Function to download and extract TAR file from GitHub
-def download_and_extract_tar(username, repo_name, tar_path):
-    url = f"https://github.com/{username}/{repo_name}/archive/refs/heads/{tar_path}.tar.gz"
-    response = requests.get(url)
+# Function to download and extract TAR file from a specific URL
+def download_and_extract_tar(tar_url):
+    response = requests.get(tar_url)
 
     if response.status_code == 200:
         with tarfile.open(fileobj=io.BytesIO(response.content), mode='r:gz') as tar:
@@ -68,13 +61,11 @@ st.title("Solar Sunspot Analysis from Images")
 # Clean up temp folder at the start
 cleanup_temp_folder()
 
-# Input: GitHub Repository Info
-username = st.text_input("Enter your GitHub username:")
-repo_name = st.text_input("Enter your GitHub repository name:")
-tar_path = st.text_input("Enter the name of the branch containing the TAR:", "main")  # Default branch
+# Define the TAR file URL directly
+tar_url = "https://github.com/madhan-phy/ML/raw/a7c33130d06525558d75dc1da011372d82daaaad/solar-images/solar_pics.tar.gz"
 
 if st.button("Fetch Images from GitHub"):
-    image_files = download_and_extract_tar(username, repo_name, tar_path)
+    image_files = download_and_extract_tar(tar_url)
     if image_files:
         st.success(f"Fetched {len(image_files)} images from GitHub.")
     else:
