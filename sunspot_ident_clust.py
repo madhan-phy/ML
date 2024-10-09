@@ -65,7 +65,7 @@ def download_and_extract_tar(tar_url):
         st.error(f"Failed to retrieve or extract TAR file: {e}")
         return []
 
-# Function to clean up temp folder (if needed)
+# Function to clean up temp folder
 def cleanup_temp_folder():
     if os.path.exists("solar_images"):
         shutil.rmtree("solar_images")
@@ -93,7 +93,10 @@ threshold_value = st.slider("Select Threshold Value for Sunspot Detection:", 0, 
 if st.button("Process Images"):
     if st.session_state.image_files:  # Check if image_files is not empty
         st.write("Image files to be processed:", st.session_state.image_files)  # Debugging statement
-        processed_images, sunspots = process_images(st.session_state.image_files, threshold_value)
+        
+        with st.spinner("Processing images..."):
+            processed_images, sunspots = process_images(st.session_state.image_files, threshold_value)
+            st.success("Image processing complete.")
 
         # Slideshow for processed images
         st.subheader("Processed Images with Sunspots Marked")
@@ -110,8 +113,11 @@ if st.button("Process Images"):
             if sunspots:
                 sunspot_coords = np.array(sunspots)
                 num_clusters = st.slider("Select number of clusters:", 1, 10, 3)
-                kmeans = KMeans(n_clusters=num_clusters)
-                clusters = kmeans.fit_predict(sunspot_coords)
+                
+                with st.spinner("Clustering sunspots..."):
+                    kmeans = KMeans(n_clusters=num_clusters)
+                    clusters = kmeans.fit_predict(sunspot_coords)
+                    st.success("Clustering complete.")
 
                 cluster_df = pd.DataFrame(sunspot_coords, columns=['X', 'Y'])
                 cluster_df['Cluster'] = clusters
@@ -126,6 +132,6 @@ if st.button("Process Images"):
         st.error("Please fetch images from GitHub before processing.")
 
 # Option to clean up the folder
-if st.checkbox("Clean up image folder after processing"):
+if st.button("Clean up image folder"):
     cleanup_temp_folder()
     st.success("Cleaned up the solar_images folder.")
