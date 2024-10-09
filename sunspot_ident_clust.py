@@ -8,6 +8,15 @@ import io
 import random
 import shutil
 
+# Function to find dark spots and draw circles
+def find_dark_spots(image, threshold_value):
+    img_np = np.array(image.convert("L"))  # Convert to grayscale
+    img_binary = np.where(img_np > threshold_value, 255, 0).astype(np.uint8)
+
+    # Find coordinates of dark spots
+    y_coords, x_coords = np.where(img_binary == 0)  # Find remaining black pixels
+    return list(zip(x_coords, y_coords))
+
 # Function to download and extract TAR file from a specific URL
 def download_and_extract_tar(tar_url):
     try:
@@ -36,15 +45,6 @@ def download_and_extract_tar(tar_url):
 def cleanup_temp_folder():
     if os.path.exists("solar_images"):
         shutil.rmtree("solar_images")
-
-# Function to find dark spots and draw circles
-def find_dark_spots(image, threshold_value):
-    img_np = np.array(image.convert("L"))  # Convert to grayscale
-    img_binary = np.where(img_np > threshold_value, 255, 0).astype(np.uint8)
-
-    # Find coordinates of dark spots
-    y_coords, x_coords = np.where(img_binary == 0)  # Find remaining black pixels
-    return list(zip(x_coords, y_coords))
 
 # Streamlit app layout
 st.title("Solar Dark Spot Analysis from Images")
