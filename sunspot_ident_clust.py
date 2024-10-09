@@ -4,11 +4,30 @@ from PIL import Image
 import requests
 import tarfile
 import os
+import platform
 import io
 import random
 import shutil
+def install_libgl():
+    system = platform.system()
+    
+    if system == "Linux":
+        # For Debian/Ubuntu
+        os.system('sudo apt-get install -y libgl1-mesa-glx')
+    elif system == "RedHat":
+        # For Red Hat/CentOS
+        os.system('sudo yum install -y mesa-libGL')
+    elif system == "Darwin":
+        # For macOS
+        os.system('brew install glfw')  # Assumes Homebrew is installed
+    else:
+        print("Unsupported OS for dynamic installation.")
+
+# Call the function
+install_libgl()
 os.system('pip install opencv-python numpy')
 import cv2
+
 
 
 # Function to find dark spots using OpenCV
