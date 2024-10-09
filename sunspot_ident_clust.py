@@ -88,9 +88,9 @@ if st.session_state.original_image is not None:
     img_with_circles = st.session_state.original_image.copy()
     draw = ImageDraw.Draw(img_with_circles)
 
-    # Draw circles around detected dark spots
+    # Draw circles around detected dark spots without altering background
     for (x, y) in st.session_state.dark_spots:
-        draw.ellipse((x-5, y-5, x+5, y+5), outline="red", width=1)  # Draw a small circle around the spot
+        draw.ellipse((x - 5, y - 5, x + 5, y + 5), outline="red", width=1)  # Draw a small circle around the spot
 
     st.image(img_with_circles, caption="Original Image with Dark Spots", use_column_width=True)
 
