@@ -18,6 +18,7 @@ def process_images(image_files, threshold_value):
 
     for i, img_path in enumerate(image_files):
         try:
+            # Open the original image
             img = Image.open(img_path).convert("L")  # Convert to grayscale
             img_np = np.array(img)
 
@@ -124,7 +125,7 @@ if st.session_state.processed_images:
         if st.session_state.current_image_index < len(st.session_state.processed_images) - 1:
             st.session_state.current_image_index += 1
 
-    # Display processed image
+    # Display processed image (original image with circles)
     st.image(st.session_state.processed_images[st.session_state.current_image_index], caption=f'Processed Image {st.session_state.current_image_index + 1} of {len(st.session_state.processed_images)}', use_column_width=True)
 
 else:
