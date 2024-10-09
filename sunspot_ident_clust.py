@@ -40,14 +40,21 @@ def process_images(image_files, threshold_value):
 
 # Function to download and extract TAR file from a specific URL
 def download_and_extract_tar(tar_url):
-    response = requests.get(tar_url)
+    try:
+        response = requests.get(tar_url)
+        response.raise_for_status()  # Raise an error for bad responses
 
-    if response.status_code == 200:
+        # Create temp_images directory if it doesn't exist
+        os.makedirs("temp_images", exist_ok=True)
+
         with tarfile.open(fileobj=io.BytesIO(response.content), mode='r:gz') as tar:
             tar.extractall("temp_images")  # Extract to temp_images folder
+
+        # Return list of .jpg image paths
         return [os.path.join("temp_images", f) for f in os.listdir("temp_images") if f.endswith('.jpg')]
-    else:
-        st.error("Failed to retrieve TAR file from GitHub.")
+    
+    except Exception as e:
+        st.error(f"Failed to retrieve or extract TAR file: {e}")
         return []
 
 # Function to clean up temp folder
