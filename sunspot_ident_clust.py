@@ -49,9 +49,13 @@ def download_and_extract_tar(tar_url):
 
         with tarfile.open(fileobj=io.BytesIO(response.content), mode='r:gz') as tar:
             tar.extractall("temp_images")  # Extract to temp_images folder
+            
+            # List the extracted files for debugging
+            extracted_files = tar.getnames()
+            st.write("Extracted files:", extracted_files)
 
         # Return list of .jpg image paths
-        return [os.path.join("temp_images", f) for f in os.listdir("temp_images") if f.endswith('.jpg')]
+        return [os.path.join("temp_images", f) for f in extracted_files if f.endswith('.jpg')]
     
     except Exception as e:
         st.error(f"Failed to retrieve or extract TAR file: {e}")
