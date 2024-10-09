@@ -8,8 +8,8 @@ import tarfile
 import os
 import io
 import random
+from sklearn.cluster import KMeans
 import shutil
-from sklearn.cluster import DBSCAN
 
 # Function to process images and mark dark spots
 def process_images(image_files, threshold_value):
@@ -21,59 +21,50 @@ def process_images(image_files, threshold_value):
 
     for i, img_path in enumerate(image_files):
         try:
-            img_original = Image.open(img_path).convert("L")  # Load original image
-            img_np = np.array(img_original)
+            img = Image.open(img_path).convert("L")  # Convert to grayscale
+            img_np = np.array(img)
 
-            # Lenient thresholding to detect dark spots
-            img_np[img_np > threshold_value] = 255  # Set light pixels to white
-            img_np[img_np <= threshold_value] = 0   # Set dark pixels to black
+            # Simple thresholding to create a binary image
+            img_binary = np.where(img_np > threshold_value, 255, 0).astype(np.uint8)
 
-            # Find coordinates of dark spots (black pixels)
-            y_coords, x_coords = np.where(img_np == 0)  # Find black pixels
-            potential_spots = list(zip(x_coords, y_coords))
+            # Detect edges using a simple method
+            edges = np.zeros_like(img_binary)
+            for y in range(1, img_binary.shape[0] - 1):
+                for x in range(1, img_binary.shape[1] - 1):
+                    if img_binary[y, x] == 0:  # Dark pixel
+                        edges[y, x] = 255  # Mark it as an edge
 
-            # Use DBSCAN to group dark spots
-            if potential_spots:
-                # Convert to numpy array for DBSCAN
-                spots_np = np.array(potential_spots)
-                clustering = DBSCAN(eps=10, min_samples=2).fit(spots_np)
+            # Create a mask to exclude detected lines
+            mask = np.ones_like(img_binary, dtype=bool)
 
-                # Collect spots but exclude those in straight or slant lines
-                unique_labels = set(clustering.labels_)
-                filtered_spots = []
+            # Exclude horizontal or slanted lines
+            for y in range(edges.shape[0]):
+                for x in range(edges.shape[1]):
+                    if edges[y, x] == 255:  # Found an edge
+                        # Check the surrounding pixels to identify if it's a line
+                        if np.sum(edges[max(0, y-1):min(y+2, mask.shape[0]), max(0, x-1):min(x+2, mask.shape[1])]) > 2:  # Line-like check
+                            mask[max(0, y-1):min(y+2, mask.shape[0]), max(0, x-1):min(x+2, mask.shape[1])] = False
 
-                for label in unique_labels:
-                    if label == -1:  # Noise points
-                        continue
+            # Exclude pixels near the detected lines
+            img_binary[~mask] = 255  # Set masked areas to white
 
-                    cluster_points = spots_np[clustering.labels_ == label]
+            # Find remaining dark spots (black pixels)
+            y_coords, x_coords = np.where(img_binary == 0)  # Find remaining black pixels
+            dark_spots.extend(zip(x_coords, y_coords))
 
-                    # Check if the cluster is a straight or slant line
-                    if len(cluster_points) >= 3:
-                        # Calculate slopes between points
-                        slopes = []
-                        for j in range(len(cluster_points)):
-                            for k in range(j + 1, len(cluster_points)):
-                                if cluster_points[j][0] != cluster_points[k][0]:  # Avoid vertical lines
-                                    slope = (cluster_points[k][1] - cluster_points[j][1]) / (cluster_points[k][0] - cluster_points[j][0])
-                                    slopes.append(slope)
-
-                        # If slopes are similar, consider it a line and skip it
-                        if len(set(slopes)) <= 1:  # All slopes are similar
-                            continue
-
-                    # If not a line, add the points
-                    filtered_spots.extend(cluster_points)
-
-            dark_spots.extend(filtered_spots)
-
-            # Create a copy of the original image to draw circles
-            img_processed = img_original.copy()
+            # Draw circles around detected spots on the original image
+            img_processed = Image.fromarray(np.array(img))  # Use the original image
             draw = ImageDraw.Draw(img_processed)
             for (x, y) in dark_spots:
-                # Draw a circle around each dark spot
-                radius = 8  # Adjust circle radius as needed
-                draw.ellipse((x - radius, y - radius, x + radius, y + radius), outline=255, width=2)
+                draw.ellipse((x-5, y-5, x+5, y+5), outline="red", width=1)  # Draw a small circle around the spot
+
+            # Add label for the axis (slanted line)
+            # Adjust coordinates (x1, y1) and (x2, y2) for the axis line as needed
+            x1, y1 = 0, int(img_processed.size[1] / 2)  # Starting point of the line
+            x2, y2 = img_processed.size[0], int(img_processed.size[1] / 2)  # Ending point of the line
+            
+            draw.line((x1, y1, x2, y2), fill="blue", width=2)  # Draw the axis line
+            draw.text((x1 + 10, y1 - 15), "Axis", fill="blue")  # Label the axis
 
             processed_images.append(img_processed)
             
@@ -124,14 +115,12 @@ if 'processed_images' not in st.session_state:
     st.session_state.processed_images = []
 if 'dark_spots' not in st.session_state:
     st.session_state.dark_spots = []
-if 'current_image_index' not in st.session_state:
-    st.session_state.current_image_index = 0
 
 # Define the TAR file URL directly
 tar_url = "https://github.com/madhan-phy/ML/raw/a7c33130d06525558d75dc1da011372d82daaaad/solar-images/solar_pics.tar.gz"
 
 # Slider for the number of images to fetch
-num_images = st.slider("Select number of images to process:", 1, 1000, 500)
+num_images = st.slider("Select number of images to process:", 10, 1000, 500)
 
 if st.button("Fetch Images from GitHub"):
     st.session_state.image_files = download_and_extract_tar(tar_url)
@@ -153,7 +142,9 @@ if st.button("Process Images"):
         # Process images
         st.session_state.processed_images, st.session_state.dark_spots = process_images(st.session_state.image_files, threshold_value)
         st.success("Image processing complete.")
-        st.session_state.current_image_index = 0  # Reset to the first image
+        
+        # Initialize index for slider
+        st.session_state.current_image_index = 0
 
 # Navigation buttons for image index
 if st.session_state.processed_images:
@@ -165,9 +156,8 @@ if st.session_state.processed_images:
         if st.session_state.current_image_index < len(st.session_state.processed_images) - 1:
             st.session_state.current_image_index += 1
 
-    # Display processed image (original with circles)
-    current_image = st.session_state.processed_images[st.session_state.current_image_index]
-    st.image(current_image, caption=f'Processed Image {st.session_state.current_image_index + 1} of {len(st.session_state.processed_images)}', use_column_width=True)
+    # Display processed image
+    st.image(st.session_state.processed_images[st.session_state.current_image_index], caption=f'Processed Image {st.session_state.current_image_index + 1} of {len(st.session_state.processed_images)}', use_column_width=True)
 
 else:
     st.error("Please fetch images from GitHub and process them first.")
