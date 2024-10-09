@@ -91,6 +91,7 @@ threshold_value = st.slider("Select Threshold Value for Sunspot Detection:", 0, 
 
 if st.button("Process Images"):
     if st.session_state.image_files:  # Check if image_files is not empty
+        st.write("Image files to be processed:", st.session_state.image_files)  # Debugging statement
         processed_images, sunspots = process_images(st.session_state.image_files, threshold_value)
 
         # Slideshow for processed images
