@@ -1,22 +1,36 @@
 import streamlit as st
 import numpy as np
-from PIL import Image, ImageDraw
+from PIL import Image
 import requests
 import tarfile
 import os
 import io
 import random
 import shutil
-import os
 os.system('pip install opencv-python numpy')
-# Function to find dark spots and draw circles
-def find_dark_spots(image, threshold_value):
-    img_np = np.array(image.convert("L"))  # Convert to grayscale
-    img_binary = np.where(img_np > threshold_value, 255, 0).astype(np.uint8)
+import cv2
 
-    # Find coordinates of dark spots
-    y_coords, x_coords = np.where(img_binary == 0)  # Find remaining black pixels
-    return list(zip(x_coords, y_coords))
+
+# Function to find dark spots using OpenCV
+def find_dark_spots(image, threshold_value):
+    img_np = np.array(image)  # Convert PIL image to NumPy array
+    img_gray = cv2.cvtColor(img_np, cv2.COLOR_RGB2GRAY)  # Convert to grayscale
+    _, img_binary = cv2.threshold(img_gray, threshold_value, 255, cv2.THRESH_BINARY_INV)  # Invert the thresholding
+
+    # Find contours of dark spots
+    contours, _ = cv2.findContours(img_binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    dark_spots = []
+
+    # Loop through contours to get the centroids of dark spots
+    for contour in contours:
+        if cv2.contourArea(contour) > 100:  # Filter small areas
+            M = cv2.moments(contour)
+            if M['m00'] != 0:  # Avoid division by zero
+                cX = int(M['m10'] / M['m00'])
+                cY = int(M['m01'] / M['m00'])
+                dark_spots.append((cX, cY))
+
+    return dark_spots
 
 # Function to download and extract TAR file from a specific URL
 def download_and_extract_tar(tar_url):
@@ -86,12 +100,11 @@ if st.button("Process Images"):
 # Display the original image with dark spots circled
 if st.session_state.original_image is not None:
     # Create a copy of the original image to draw on
-    img_with_circles = st.session_state.original_image.copy()
-    draw = ImageDraw.Draw(img_with_circles)
-
-    # Draw circles around detected dark spots without altering background
+    img_with_circles = np.array(st.session_state.original_image)
+    
+    # Draw circles around detected dark spots
     for (x, y) in st.session_state.dark_spots:
-        draw.ellipse((x - 5, y - 5, x + 5, y + 5), outline="red", width=1)  # Draw a small circle around the spot
+        cv2.circle(img_with_circles, (x, y), 5, (255, 0, 0), 2)  # Draw a small circle around the spot
 
     st.image(img_with_circles, caption="Original Image with Dark Spots", use_column_width=True)
 
