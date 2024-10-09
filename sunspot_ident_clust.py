@@ -7,6 +7,7 @@ import requests
 import tarfile
 import os
 import io
+import random  # Import random for image selection
 from sklearn.cluster import KMeans
 import shutil
 
@@ -80,9 +81,15 @@ if 'image_files' not in st.session_state:
 # Define the TAR file URL directly
 tar_url = "https://github.com/madhan-phy/ML/raw/a7c33130d06525558d75dc1da011372d82daaaad/solar-images/solar_pics.tar.gz"
 
+# Slider for the number of images to fetch
+num_images = st.slider("Select number of images to process:", 100, 1000, 500)
+
 if st.button("Fetch Images from GitHub"):
     st.session_state.image_files = download_and_extract_tar(tar_url)
     if st.session_state.image_files:
+        # Randomly select the desired number of images
+        selected_images = random.sample(st.session_state.image_files, min(num_images, len(st.session_state.image_files)))
+        st.session_state.image_files = selected_images
         st.success(f"Fetched {len(st.session_state.image_files)} images from GitHub.")
     else:
         st.error("No images found.")
