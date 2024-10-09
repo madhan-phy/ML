@@ -7,7 +7,8 @@ import os
 import io
 import random
 import shutil
-
+import os
+os.system('pip install opencv-python numpy')
 # Function to find dark spots and draw circles
 def find_dark_spots(image, threshold_value):
     img_np = np.array(image.convert("L"))  # Convert to grayscale
