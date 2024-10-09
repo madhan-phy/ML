@@ -7,8 +7,9 @@ import requests
 import tarfile
 import os
 import io
-import random  # Import random for image selection
+import random
 import shutil
+from sklearn.cluster import DBSCAN
 
 # Function to process images and mark dark spots
 def process_images(image_files, threshold_value):
@@ -29,7 +30,42 @@ def process_images(image_files, threshold_value):
 
             # Find coordinates of dark spots (black pixels)
             y_coords, x_coords = np.where(img_np == 0)  # Find black pixels
-            dark_spots.extend(zip(x_coords, y_coords))
+            potential_spots = list(zip(x_coords, y_coords))
+
+            # Use DBSCAN to group dark spots
+            if potential_spots:
+                # Convert to numpy array for DBSCAN
+                spots_np = np.array(potential_spots)
+                clustering = DBSCAN(eps=10, min_samples=2).fit(spots_np)
+
+                # Collect spots but exclude those in straight or slant lines
+                unique_labels = set(clustering.labels_)
+                filtered_spots = []
+
+                for label in unique_labels:
+                    if label == -1:  # Noise points
+                        continue
+
+                    cluster_points = spots_np[clustering.labels_ == label]
+
+                    # Check if the cluster is a straight or slant line
+                    if len(cluster_points) >= 3:
+                        # Calculate slopes between points
+                        slopes = []
+                        for j in range(len(cluster_points)):
+                            for k in range(j + 1, len(cluster_points)):
+                                if cluster_points[j][0] != cluster_points[k][0]:  # Avoid vertical lines
+                                    slope = (cluster_points[k][1] - cluster_points[j][1]) / (cluster_points[k][0] - cluster_points[j][0])
+                                    slopes.append(slope)
+
+                        # If slopes are similar, consider it a line and skip it
+                        if len(set(slopes)) <= 1:  # All slopes are similar
+                            continue
+
+                    # If not a line, add the points
+                    filtered_spots.extend(cluster_points)
+
+            dark_spots.extend(filtered_spots)
 
             # Create a copy of the original image to draw circles
             img_processed = img_original.copy()
