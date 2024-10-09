@@ -24,41 +24,15 @@ def process_images(image_files, threshold_value):
             # Simple thresholding to create a binary image
             img_binary = np.where(img_np > threshold_value, 255, 0).astype(np.uint8)
 
-            # Detect edges using a simple method (Sobel operator)
-            sobel_x = np.array([[1, 0, -1], [2, 0, -2], [1, 0, -1]])
-            sobel_y = np.array([[1, 2, 1], [0, 0, 0], [-1, -2, -1]])
-
-            # Convolve with Sobel operator
-            edges_x = np.abs(np.convolve(img_binary.flatten(), sobel_x.flatten(), mode='same')).reshape(img_binary.shape)
-            edges_y = np.abs(np.convolve(img_binary.flatten(), sobel_y.flatten(), mode='same')).reshape(img_binary.shape)
-            edges = np.maximum(edges_x, edges_y)
-
-            # Create a mask to exclude detected lines
-            mask = np.ones_like(img_binary, dtype=bool)
-
-            # Detecting slanted lines (based on edges)
-            for y in range(edges.shape[0]):
-                for x in range(edges.shape[1]):
-                    if edges[y, x] > 50:  # Threshold for edge detection
-                        # Mark surrounding pixels
-                        mask[max(0, y-1):min(y+2, mask.shape[0]), max(0, x-1):min(x+2, mask.shape[1])] = False
-
-            # Exclude pixels near the detected lines
-            img_binary[~mask] = 255  # Set masked areas to white
-
             # Find remaining dark spots (black pixels)
             y_coords, x_coords = np.where(img_binary == 0)  # Find remaining black pixels
             dark_spots.extend(zip(x_coords, y_coords))
 
             # Draw circles around detected spots on the original image
-            img_processed = Image.fromarray(np.array(img))  # Use the original image
+            img_processed = img.copy()  # Use the original image
             draw = ImageDraw.Draw(img_processed)
             for (x, y) in dark_spots:
                 draw.ellipse((x-5, y-5, x+5, y+5), outline="red", width=1)  # Draw a small circle around the spot
-
-            # Label the detected slanted line as "Axis"
-            if any(mask.flatten() == False):  # If any area is masked, it indicates detected lines
-                draw.text((10, 10), "Axis", fill="blue")  # Label the axis
 
             processed_images.append(img_processed)
             
@@ -137,7 +111,7 @@ if st.button("Process Images"):
         st.session_state.processed_images, st.session_state.dark_spots = process_images(st.session_state.image_files, threshold_value)
         st.success("Image processing complete.")
         
-        # Initialize index for slider
+        # Initialize index for navigation
         st.session_state.current_image_index = 0
 
 # Navigation buttons for image index
