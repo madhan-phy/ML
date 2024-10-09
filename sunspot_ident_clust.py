@@ -47,33 +47,31 @@ def download_and_extract_tar(tar_url):
         response = requests.get(tar_url)
         response.raise_for_status()  # Raise an error for bad responses
 
-        # Create temp_images directory if it doesn't exist
-        os.makedirs("temp_images", exist_ok=True)
+        # Specify a more permanent directory for images
+        image_directory = os.path.abspath("solar_images")
+        os.makedirs(image_directory, exist_ok=True)
 
         with tarfile.open(fileobj=io.BytesIO(response.content), mode='r:gz') as tar:
-            tar.extractall("temp_images")  # Extract to temp_images folder
+            tar.extractall(image_directory)  # Extract to solar_images folder
             
             # List the extracted files for debugging
             extracted_files = tar.getnames()
             st.write("Extracted files:", extracted_files)
 
         # Return absolute paths for .jpg image files
-        return [os.path.abspath(os.path.join("temp_images", f)) for f in extracted_files if f.endswith('.jpg')]
+        return [os.path.join(image_directory, f) for f in extracted_files if f.endswith('.jpg')]
     
     except Exception as e:
         st.error(f"Failed to retrieve or extract TAR file: {e}")
         return []
 
-# Function to clean up temp folder
+# Function to clean up temp folder (if needed)
 def cleanup_temp_folder():
-    if os.path.exists("temp_images"):
-        shutil.rmtree("temp_images")
+    if os.path.exists("solar_images"):
+        shutil.rmtree("solar_images")
 
 # Streamlit app layout
 st.title("Solar Sunspot Analysis from Images")
-
-# Clean up temp folder at the start
-cleanup_temp_folder()
 
 # Initialize a global variable to store image files
 if 'image_files' not in st.session_state:
@@ -126,3 +124,8 @@ if st.button("Process Images"):
             st.error("No images processed. Please check the image files.")
     else:
         st.error("Please fetch images from GitHub before processing.")
+
+# Option to clean up the folder
+if st.checkbox("Clean up image folder after processing"):
+    cleanup_temp_folder()
+    st.success("Cleaned up the solar_images folder.")
