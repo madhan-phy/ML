@@ -20,8 +20,8 @@ def process_images(image_files, threshold_value):
 
     for i, img_path in enumerate(image_files):
         try:
-            img = Image.open(img_path).convert("L")  # Convert to grayscale
-            img_np = np.array(img)
+            img_original = Image.open(img_path).convert("L")  # Load original image
+            img_np = np.array(img_original)
 
             # Lenient thresholding to detect dark spots
             img_np[img_np > threshold_value] = 255  # Set light pixels to white
@@ -31,8 +31,8 @@ def process_images(image_files, threshold_value):
             y_coords, x_coords = np.where(img_np == 0)  # Find black pixels
             dark_spots.extend(zip(x_coords, y_coords))
 
-            # Create an image with circles around dark spots
-            img_processed = Image.fromarray(img_np)
+            # Create a copy of the original image to draw circles
+            img_processed = img_original.copy()
             draw = ImageDraw.Draw(img_processed)
             for (x, y) in dark_spots:
                 # Draw a circle around each dark spot
@@ -95,7 +95,7 @@ if 'current_image_index' not in st.session_state:
 tar_url = "https://github.com/madhan-phy/ML/raw/a7c33130d06525558d75dc1da011372d82daaaad/solar-images/solar_pics.tar.gz"
 
 # Slider for the number of images to fetch
-num_images = st.slider("Select number of images to process:", 1, 1000, 500)
+num_images = st.slider("Select number of images to process:", 10, 1000, 500)
 
 if st.button("Fetch Images from GitHub"):
     st.session_state.image_files = download_and_extract_tar(tar_url)
@@ -129,7 +129,7 @@ if st.session_state.processed_images:
         if st.session_state.current_image_index < len(st.session_state.processed_images) - 1:
             st.session_state.current_image_index += 1
 
-    # Display processed image
+    # Display processed image (original with circles)
     current_image = st.session_state.processed_images[st.session_state.current_image_index]
     st.image(current_image, caption=f'Processed Image {st.session_state.current_image_index + 1} of {len(st.session_state.processed_images)}', use_column_width=True)
 
