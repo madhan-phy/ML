@@ -2,7 +2,6 @@ import streamlit as st
 import numpy as np
 import pandas as pd
 import plotly.express as px
-import cv2  # OpenCV for image processing
 from PIL import Image
 import requests
 import tarfile
@@ -22,25 +21,26 @@ def process_images(image_files, threshold_value):
     processed_images = []
     sunspots = []
 
-    for img in image_files:
-        img_cv = np.array(img)
+    for img_path in image_files:
+        img = Image.open(img_path).convert("L")  # Convert to grayscale
+        img_np = np.array(img)
 
-        # Thresholding to detect sunspots (black dots)
-        _, thresh = cv2.threshold(img_cv, threshold_value, 255, cv2.THRESH_BINARY_INV)
+        # Simple thresholding to detect sunspots (black dots)
+        img_np[img_np > threshold_value] = 255
+        img_np[img_np <= threshold_value] = 0
 
-        # Find contours of sunspots
-        contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        # Convert back to PIL image for display
+        img_processed = Image.fromarray(img_np)
 
-        for contour in contours:
-            if cv2.contourArea(contour) > 5:
-                M = cv2.moments(contour)
-                if M["m00"] != 0:
-                    cX = int(M["m10"] / M["m00"])
-                    cY = int(M["m01"] / M["m00"])
-                    sunspots.append((cX, cY))
-                    cv2.circle(img_cv, (cX, cY), 3, (255, 0, 0), -1)
+        # Find sunspots (coordinates of black pixels)
+        y_coords, x_coords = np.where(img_np == 0)  # Black pixels
+        sunspots.extend(zip(x_coords, y_coords))
 
-        processed_images.append(img_cv)
+        # Optionally, draw the sunspots on the processed image
+        for (x, y) in sunspots:
+            img_processed.putpixel((x, y), 255)  # Change black dots to white
+
+        processed_images.append(img_processed)
 
     return processed_images, sunspots
 
@@ -52,7 +52,7 @@ def download_and_extract_tar(username, repo_name, tar_path):
     if response.status_code == 200:
         with tarfile.open(fileobj=io.BytesIO(response.content), mode='r:gz') as tar:
             tar.extractall("temp_images")  # Extract to temp_images folder
-        return [os.path.join("temp_images", f) for f in os.listdir("temp_images")]
+        return [os.path.join("temp_images", f) for f in os.listdir("temp_images") if f.endswith('.jpg')]
     else:
         st.error("Failed to retrieve TAR file from GitHub.")
         return []
