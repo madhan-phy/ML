@@ -95,7 +95,7 @@ if 'current_image_index' not in st.session_state:
 tar_url = "https://github.com/madhan-phy/ML/raw/a7c33130d06525558d75dc1da011372d82daaaad/solar-images/solar_pics.tar.gz"
 
 # Slider for the number of images to fetch
-num_images = st.slider("Select number of images to process:", 10, 1000, 500)
+num_images = st.slider("Select number of images to process:", 1, 1000, 500)
 
 if st.button("Fetch Images from GitHub"):
     st.session_state.image_files = download_and_extract_tar(tar_url)
