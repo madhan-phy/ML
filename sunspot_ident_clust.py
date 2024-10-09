@@ -8,26 +8,36 @@ import platform
 import io
 import random
 import shutil
+# Function to install a package
+def install(package):
+    os.system(f"{sys.executable} -m pip install {package}")
+
+# Check for Streamlit
+try:
+    import streamlit as st
+except ImportError:
+    print("Streamlit is not installed. Installing now...")
+    install("streamlit")
+    import streamlit as st
+
+# Check for OpenCV
+try:
+    import cv2
+except ImportError:
+    print("OpenCV is not installed. Installing now...")
+    install("opencv-python")
+    import cv2
+
+# Check if libGL is needed and attempt installation
 def install_libgl():
-    system = platform.system()
-    
-    if system == "Linux":
-        # For Debian/Ubuntu
+    if platform.system() == "Linux":
         os.system('sudo apt-get install -y libgl1-mesa-glx')
-    elif system == "RedHat":
-        # For Red Hat/CentOS
-        os.system('sudo yum install -y mesa-libGL')
-    elif system == "Darwin":
-        # For macOS
-        os.system('brew install glfw')  # Assumes Homebrew is installed
-    else:
-        print("Unsupported OS for dynamic installation.")
+    # Additional checks for other platforms can be added here
 
-# Call the function
 install_libgl()
-os.system('pip install opencv-python numpy')
-import cv2
 
+st.title("Dynamic Package Installation Example")
+os.system('pip install opencv-python numpy')
 
 
 # Function to find dark spots using OpenCV
