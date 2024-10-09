@@ -15,8 +15,11 @@ import shutil
 def process_images(image_files, threshold_value):
     processed_images = []
     sunspots = []
+    
+    total_images = len(image_files)
+    progress_bar = st.progress(0)  # Initialize progress bar
 
-    for img_path in image_files:
+    for i, img_path in enumerate(image_files):
         try:
             img = Image.open(img_path).convert("L")  # Convert to grayscale
             img_np = np.array(img)
@@ -37,6 +40,10 @@ def process_images(image_files, threshold_value):
                 img_processed.putpixel((x, y), 255)  # Change black dots to white
 
             processed_images.append(img_processed)
+            
+            # Update progress bar
+            progress_bar.progress((i + 1) / total_images)
+
         except Exception as e:
             st.error(f"Error processing image {img_path}: {e}")
 
@@ -109,12 +116,12 @@ if st.button("Process Images"):
         st.subheader("Processed Images with Sunspots Marked")
         if processed_images:
             image_index = st.slider("Select an image index:", 0, len(processed_images) - 1, 0)
-            st.image(processed_images[image_index], caption=f'Processed Image {image_index + 1}', use_column_width=True)
+            st.image(processed_images[image_index], caption=f'Processed Image {image_index + 1} of {len(processed_images)}', use_column_width=True)
 
             # Display sunspot information
             st.write("### Detected Sunspots:")
             for idx, (x, y) in enumerate(sunspots):
-                st.write(f"Sunspot {idx + 1}: Coordinates (X: {x}, Y: {y})")
+                st.write(f"Sunspot {idx + 1}: Coordinates (X: {x}, Y: {y}")
 
             # If clustering is enabled, apply K-Means
             if sunspots:
