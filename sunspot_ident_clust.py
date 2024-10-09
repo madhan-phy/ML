@@ -1,13 +1,11 @@
 import streamlit as st
 import numpy as np
-import pandas as pd
 from PIL import Image, ImageDraw
 import requests
 import tarfile
 import os
 import io
 import random
-import cv2  # For image processing
 import shutil
 
 # Function to process images and mark dark spots
@@ -26,26 +24,24 @@ def process_images(image_files, threshold_value):
             # Simple thresholding to create a binary image
             img_binary = np.where(img_np > threshold_value, 255, 0).astype(np.uint8)
 
-            # Use Hough Line Transform to detect lines in the image
-            edges = cv2.Canny(img_binary, 50, 150, apertureSize=3)
-            lines = cv2.HoughLines(edges, 1, np.pi / 180, threshold=100)
+            # Detect edges using a simple method (Sobel operator)
+            sobel_x = np.array([[1, 0, -1], [2, 0, -2], [1, 0, -1]])
+            sobel_y = np.array([[1, 2, 1], [0, 0, 0], [-1, -2, -1]])
+
+            # Convolve with Sobel operator
+            edges_x = np.abs(np.convolve(img_binary.flatten(), sobel_x.flatten(), mode='same')).reshape(img_binary.shape)
+            edges_y = np.abs(np.convolve(img_binary.flatten(), sobel_y.flatten(), mode='same')).reshape(img_binary.shape)
+            edges = np.maximum(edges_x, edges_y)
 
             # Create a mask to exclude detected lines
             mask = np.ones_like(img_binary, dtype=bool)
 
-            # Identify and mark detected lines
-            if lines is not None:
-                for rho, theta in lines[:, 0]:
-                    a = np.cos(theta)
-                    b = np.sin(theta)
-                    x0 = a * rho
-                    y0 = b * rho
-                    x1 = int(x0 + 1000 * (-b))
-                    y1 = int(y0 + 1000 * (a))
-                    x2 = int(x0 - 1000 * (-b))
-                    y2 = int(y0 - 1000 * (a))
-                    # Draw the detected line on the mask
-                    cv2.line(mask, (x1, y1), (x2, y2), 0, 2)
+            # Detecting slanted lines (based on edges)
+            for y in range(edges.shape[0]):
+                for x in range(edges.shape[1]):
+                    if edges[y, x] > 50:  # Threshold for edge detection
+                        # Mark surrounding pixels
+                        mask[max(0, y-1):min(y+2, mask.shape[0]), max(0, x-1):min(x+2, mask.shape[1])] = False
 
             # Exclude pixels near the detected lines
             img_binary[~mask] = 255  # Set masked areas to white
@@ -60,11 +56,9 @@ def process_images(image_files, threshold_value):
             for (x, y) in dark_spots:
                 draw.ellipse((x-5, y-5, x+5, y+5), outline="red", width=1)  # Draw a small circle around the spot
 
-            # Label the detected slanted line as "Axis" if it exists
-            if lines is not None:
-                for rho, theta in lines[:, 0]:
-                    if theta < np.pi / 4 or theta > 3 * np.pi / 4:  # Filter for horizontal lines
-                        draw.text((10, 10), "Axis", fill="blue")  # Label the axis
+            # Label the detected slanted line as "Axis"
+            if any(mask.flatten() == False):  # If any area is masked, it indicates detected lines
+                draw.text((10, 10), "Axis", fill="blue")  # Label the axis
 
             processed_images.append(img_processed)
             
