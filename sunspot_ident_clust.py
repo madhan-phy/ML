@@ -2,7 +2,7 @@ import streamlit as st
 import numpy as np
 import pandas as pd
 import plotly.express as px
-from PIL import Image
+from PIL import Image, ImageDraw
 import requests
 import tarfile
 import os
@@ -11,10 +11,10 @@ import random  # Import random for image selection
 from sklearn.cluster import KMeans
 import shutil
 
-# Function to process images and mark sunspots
+# Function to process images and mark dark spots
 def process_images(image_files, threshold_value):
     processed_images = []
-    sunspots = []
+    dark_spots = []
     
     total_images = len(image_files)
     progress_bar = st.progress(0)  # Initialize progress bar
@@ -24,46 +24,21 @@ def process_images(image_files, threshold_value):
             img = Image.open(img_path).convert("L")  # Convert to grayscale
             img_np = np.array(img)
 
-            # Simple thresholding to detect sunspots (black dots)
+            # Simple thresholding to detect dark spots
             img_np[img_np > threshold_value] = 255
             img_np[img_np <= threshold_value] = 0
 
-            # Create an edge-detected version
-            edges = np.zeros_like(img_np)
-            for y in range(1, img_np.shape[0] - 1):
-                for x in range(1, img_np.shape[1] - 1):
-                    # Simple Sobel-like edge detection
-                    gx = img_np[y-1, x+1] - img_np[y-1, x-1] + \
-                         2 * (img_np[y, x+1] - img_np[y, x-1]) + \
-                         img_np[y+1, x+1] - img_np[y+1, x-1]
+            # Find coordinates of dark spots (black pixels)
+            y_coords, x_coords = np.where(img_np == 0)  # Find black pixels
+            dark_spots.extend(zip(x_coords, y_coords))
 
-                    gy = img_np[y+1, x-1] - img_np[y-1, x-1] + \
-                         2 * (img_np[y+1, x] - img_np[y-1, x]) + \
-                         img_np[y+1, x+1] - img_np[y-1, x+1]
-
-                    edge_magnitude = np.sqrt(gx**2 + gy**2)
-                    edges[y, x] = 255 if edge_magnitude > 50 else 0  # Threshold to define edges
-
-            # Create a mask to exclude detected lines
-            mask = np.ones_like(img_np, dtype=bool)
-
-            # Check for potential lines in the edge-detected image
-            for y in range(edges.shape[0]):
-                for x in range(edges.shape[1]):
-                    if edges[y, x] == 255:  # Found an edge
-                        # Mark the surrounding pixels (adjust if needed)
-                        mask[max(0, y-1):min(y+2, mask.shape[0]), max(0, x-1):min(x+2, mask.shape[1])] = False
-
-            # Exclude pixels near the detected lines
-            img_np[~mask] = 255  # Set masked areas to white
-
-            # Find remaining sunspots
-            y_coords, x_coords = np.where(img_np == 0)  # Find remaining black pixels
-            sunspots.extend(zip(x_coords, y_coords))
-
+            # Create an image with circles around dark spots
             img_processed = Image.fromarray(img_np)
-            for (x, y) in sunspots:
-                img_processed.putpixel((x, y), 255)  # Change sunspot pixels to white
+            draw = ImageDraw.Draw(img_processed)
+            for (x, y) in dark_spots:
+                # Draw a circle around each dark spot
+                radius = 5  # Adjust circle radius as needed
+                draw.ellipse((x - radius, y - radius, x + radius, y + radius), outline=255, width=1)
 
             processed_images.append(img_processed)
             
@@ -73,7 +48,7 @@ def process_images(image_files, threshold_value):
         except Exception as e:
             st.error(f"Error processing image {img_path}: {e}")
 
-    return processed_images, sunspots
+    return processed_images, dark_spots
 
 # Function to download and extract TAR file from a specific URL
 def download_and_extract_tar(tar_url):
@@ -105,15 +80,17 @@ def cleanup_temp_folder():
         shutil.rmtree("solar_images")
 
 # Streamlit app layout
-st.title("Solar Sunspot Analysis from Images")
+st.title("Solar Dark Spot Analysis from Images")
 
 # Initialize a global variable to store image files and processed images
 if 'image_files' not in st.session_state:
     st.session_state.image_files = []
 if 'processed_images' not in st.session_state:
     st.session_state.processed_images = []
-if 'sunspots' not in st.session_state:
-    st.session_state.sunspots = []
+if 'dark_spots' not in st.session_state:
+    st.session_state.dark_spots = []
+if 'current_image_index' not in st.session_state:
+    st.session_state.current_image_index = 0
 
 # Define the TAR file URL directly
 tar_url = "https://github.com/madhan-phy/ML/raw/a7c33130d06525558d75dc1da011372d82daaaad/solar-images/solar_pics.tar.gz"
@@ -132,48 +109,36 @@ if st.button("Fetch Images from GitHub"):
         st.error("No images found.")
 
 # Slider for threshold value
-threshold_value = st.slider("Select Threshold Value for Sunspot Detection:", 0, 255, 50)
+threshold_value = st.slider("Select Threshold Value for Dark Spot Detection:", 0, 255, 50)
 
 if st.button("Process Images"):
     if st.session_state.image_files:  # Check if image_files is not empty
         st.write("Processing images... Please wait.")
         
         # Process images
-        st.session_state.processed_images, st.session_state.sunspots = process_images(st.session_state.image_files, threshold_value)
+        st.session_state.processed_images, st.session_state.dark_spots = process_images(st.session_state.image_files, threshold_value)
         st.success("Image processing complete.")
-        
-        # Initialize index for slider
-        st.session_state.current_image_index = 0
+        st.session_state.current_image_index = 0  # Reset to the first image
 
-# Slider for image index
+# Navigation buttons for image index
 if st.session_state.processed_images:
-    image_index = st.slider("Select an image index:", 0, len(st.session_state.processed_images) - 1, 0)
-    
+    if st.button("Previous Image"):
+        if st.session_state.current_image_index > 0:
+            st.session_state.current_image_index -= 1
+
+    if st.button("Next Image"):
+        if st.session_state.current_image_index < len(st.session_state.processed_images) - 1:
+            st.session_state.current_image_index += 1
+
     # Display processed image
-    st.image(st.session_state.processed_images[image_index], caption=f'Processed Image {image_index + 1} of {len(st.session_state.processed_images)}', use_column_width=True)
+    current_image = st.session_state.processed_images[st.session_state.current_image_index]
+    st.image(current_image, caption=f'Processed Image {st.session_state.current_image_index + 1} of {len(st.session_state.processed_images)}', use_column_width=True)
 
-    # Display sunspot information
-    st.write("### Detected Sunspots:")
-    for idx, (x, y) in enumerate(st.session_state.sunspots):
-        st.write(f"Sunspot {idx + 1}: Coordinates (X: {x}, Y: {y})")
+    # Display dark spot information
+    st.write("### Detected Dark Spots:")
+    for idx, (x, y) in enumerate(st.session_state.dark_spots):
+        st.write(f"Dark Spot {idx + 1}: Coordinates (X: {x}, Y: {y})")
 
-    # If clustering is enabled, apply K-Means
-    if st.session_state.sunspots:
-        sunspot_coords = np.array(st.session_state.sunspots)
-        num_clusters = st.slider("Select number of clusters:", 1, 10, 3)
-        
-        with st.spinner("Clustering sunspots..."):
-            kmeans = KMeans(n_clusters=num_clusters)
-            clusters = kmeans.fit_predict(sunspot_coords)
-            st.success("Clustering complete.")
-
-        cluster_df = pd.DataFrame(sunspot_coords, columns=['X', 'Y'])
-        cluster_df['Cluster'] = clusters
-
-        fig_cluster = px.scatter(cluster_df, x='X', y='Y', color='Cluster',
-                                  title='Sunspot Clusters',
-                                  labels={'X': 'X Coordinate', 'Y': 'Y Coordinate'})
-        st.plotly_chart(fig_cluster)
 else:
     st.error("Please fetch images from GitHub and process them first.")
 
