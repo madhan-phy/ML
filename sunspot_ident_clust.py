@@ -68,13 +68,17 @@ st.title("Solar Sunspot Analysis from Images")
 # Clean up temp folder at the start
 cleanup_temp_folder()
 
+# Initialize a global variable to store image files
+if 'image_files' not in st.session_state:
+    st.session_state.image_files = []
+
 # Define the TAR file URL directly
 tar_url = "https://github.com/madhan-phy/ML/raw/a7c33130d06525558d75dc1da011372d82daaaad/solar-images/solar_pics.tar.gz"
 
 if st.button("Fetch Images from GitHub"):
-    image_files = download_and_extract_tar(tar_url)
-    if image_files:
-        st.success(f"Fetched {len(image_files)} images from GitHub.")
+    st.session_state.image_files = download_and_extract_tar(tar_url)
+    if st.session_state.image_files:
+        st.success(f"Fetched {len(st.session_state.image_files)} images from GitHub.")
     else:
         st.error("No images found.")
 
@@ -82,8 +86,8 @@ if st.button("Fetch Images from GitHub"):
 threshold_value = st.slider("Select Threshold Value for Sunspot Detection:", 0, 255, 50)
 
 if st.button("Process Images"):
-    if 'image_files' in locals() and image_files:
-        processed_images, sunspots = process_images(image_files, threshold_value)
+    if st.session_state.image_files:  # Check if image_files is not empty
+        processed_images, sunspots = process_images(st.session_state.image_files, threshold_value)
 
         # Slideshow for processed images
         st.subheader("Processed Images with Sunspots Marked")
