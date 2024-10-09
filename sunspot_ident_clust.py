@@ -8,43 +8,6 @@ import io
 import random
 import shutil
 
-# Function to process images and mark dark spots
-def process_images(image_files, threshold_value):
-    processed_images = []
-    dark_spots = []
-    
-    total_images = len(image_files)
-    progress_bar = st.progress(0)  # Initialize progress bar
-
-    for i, img_path in enumerate(image_files):
-        try:
-            # Open the original image
-            img = Image.open(img_path).convert("L")  # Convert to grayscale
-            img_np = np.array(img)
-
-            # Simple thresholding to create a binary image
-            img_binary = np.where(img_np > threshold_value, 255, 0).astype(np.uint8)
-
-            # Find remaining dark spots (black pixels)
-            y_coords, x_coords = np.where(img_binary == 0)  # Find remaining black pixels
-            dark_spots.extend(zip(x_coords, y_coords))
-
-            # Draw circles around detected spots on the original image
-            img_processed = img.copy()  # Use the original image
-            draw = ImageDraw.Draw(img_processed)
-            for (x, y) in dark_spots:
-                draw.ellipse((x-5, y-5, x+5, y+5), outline="red", width=1)  # Draw a small circle around the spot
-
-            processed_images.append(img_processed)
-            
-            # Update progress bar
-            progress_bar.progress((i + 1) / total_images)
-
-        except Exception as e:
-            st.error(f"Error processing image {img_path}: {e}")
-
-    return processed_images, dark_spots
-
 # Function to download and extract TAR file from a specific URL
 def download_and_extract_tar(tar_url):
     try:
@@ -74,14 +37,23 @@ def cleanup_temp_folder():
     if os.path.exists("solar_images"):
         shutil.rmtree("solar_images")
 
+# Function to find dark spots and draw circles
+def find_dark_spots(image, threshold_value):
+    img_np = np.array(image.convert("L"))  # Convert to grayscale
+    img_binary = np.where(img_np > threshold_value, 255, 0).astype(np.uint8)
+
+    # Find coordinates of dark spots
+    y_coords, x_coords = np.where(img_binary == 0)  # Find remaining black pixels
+    return list(zip(x_coords, y_coords))
+
 # Streamlit app layout
 st.title("Solar Dark Spot Analysis from Images")
 
-# Initialize a global variable to store image files and processed images
+# Initialize session state variables
 if 'image_files' not in st.session_state:
     st.session_state.image_files = []
-if 'processed_images' not in st.session_state:
-    st.session_state.processed_images = []
+if 'original_image' not in st.session_state:
+    st.session_state.original_image = None
 if 'dark_spots' not in st.session_state:
     st.session_state.dark_spots = []
 
@@ -89,7 +61,7 @@ if 'dark_spots' not in st.session_state:
 tar_url = "https://github.com/madhan-phy/ML/raw/a7c33130d06525558d75dc1da011372d82daaaad/solar-images/solar_pics.tar.gz"
 
 # Slider for the number of images to fetch
-num_images = st.slider("Select number of images to process:", 1, 1000, 500)
+num_images = st.slider("Select number of images to process:", 1, 1000, 1)
 
 if st.button("Fetch Images from GitHub"):
     st.session_state.image_files = download_and_extract_tar(tar_url)
@@ -106,30 +78,21 @@ threshold_value = st.slider("Select Threshold Value for Dark Spot Detection:", 0
 
 if st.button("Process Images"):
     if st.session_state.image_files:  # Check if image_files is not empty
-        st.write("Processing images... Please wait.")
-        
-        # Process images
-        st.session_state.processed_images, st.session_state.dark_spots = process_images(st.session_state.image_files, threshold_value)
+        st.session_state.original_image = Image.open(st.session_state.image_files[0])
+        st.session_state.dark_spots = find_dark_spots(st.session_state.original_image, threshold_value)
         st.success("Image processing complete.")
-        
-        # Initialize index for navigation
-        st.session_state.current_image_index = 0
 
-# Navigation buttons for image index
-if st.session_state.processed_images:
-    if st.button("Previous Image"):
-        if st.session_state.current_image_index > 0:
-            st.session_state.current_image_index -= 1
+# Display the original image with dark spots circled
+if st.session_state.original_image is not None:
+    # Create a copy of the original image to draw on
+    img_with_circles = st.session_state.original_image.copy()
+    draw = ImageDraw.Draw(img_with_circles)
 
-    if st.button("Next Image"):
-        if st.session_state.current_image_index < len(st.session_state.processed_images) - 1:
-            st.session_state.current_image_index += 1
+    # Draw circles around detected dark spots
+    for (x, y) in st.session_state.dark_spots:
+        draw.ellipse((x-5, y-5, x+5, y+5), outline="red", width=1)  # Draw a small circle around the spot
 
-    # Display processed image (original image with circles)
-    st.image(st.session_state.processed_images[st.session_state.current_image_index], caption=f'Processed Image {st.session_state.current_image_index + 1} of {len(st.session_state.processed_images)}', use_column_width=True)
-
-else:
-    st.error("Please fetch images from GitHub and process them first.")
+    st.image(img_with_circles, caption="Original Image with Dark Spots", use_column_width=True)
 
 # Option to clean up the folder
 if st.button("Clean up image folder"):
