@@ -8,7 +8,6 @@ import tarfile
 import os
 import io
 import random  # Import random for image selection
-from sklearn.cluster import KMeans
 import shutil
 
 # Function to process images and mark dark spots
@@ -24,9 +23,9 @@ def process_images(image_files, threshold_value):
             img = Image.open(img_path).convert("L")  # Convert to grayscale
             img_np = np.array(img)
 
-            # Simple thresholding to detect dark spots
-            img_np[img_np > threshold_value] = 255
-            img_np[img_np <= threshold_value] = 0
+            # Lenient thresholding to detect dark spots
+            img_np[img_np > threshold_value] = 255  # Set light pixels to white
+            img_np[img_np <= threshold_value] = 0   # Set dark pixels to black
 
             # Find coordinates of dark spots (black pixels)
             y_coords, x_coords = np.where(img_np == 0)  # Find black pixels
@@ -37,8 +36,8 @@ def process_images(image_files, threshold_value):
             draw = ImageDraw.Draw(img_processed)
             for (x, y) in dark_spots:
                 # Draw a circle around each dark spot
-                radius = 5  # Adjust circle radius as needed
-                draw.ellipse((x - radius, y - radius, x + radius, y + radius), outline=255, width=1)
+                radius = 8  # Adjust circle radius as needed
+                draw.ellipse((x - radius, y - radius, x + radius, y + radius), outline=255, width=2)
 
             processed_images.append(img_processed)
             
@@ -96,7 +95,7 @@ if 'current_image_index' not in st.session_state:
 tar_url = "https://github.com/madhan-phy/ML/raw/a7c33130d06525558d75dc1da011372d82daaaad/solar-images/solar_pics.tar.gz"
 
 # Slider for the number of images to fetch
-num_images = st.slider("Select number of images to process:", 10, 1000, 500)
+num_images = st.slider("Select number of images to process:", 1, 1000, 500)
 
 if st.button("Fetch Images from GitHub"):
     st.session_state.image_files = download_and_extract_tar(tar_url)
@@ -133,11 +132,6 @@ if st.session_state.processed_images:
     # Display processed image
     current_image = st.session_state.processed_images[st.session_state.current_image_index]
     st.image(current_image, caption=f'Processed Image {st.session_state.current_image_index + 1} of {len(st.session_state.processed_images)}', use_column_width=True)
-
-    # Display dark spot information
-    st.write("### Detected Dark Spots:")
-    for idx, (x, y) in enumerate(st.session_state.dark_spots):
-        st.write(f"Dark Spot {idx + 1}: Coordinates (X: {x}, Y: {y})")
 
 else:
     st.error("Please fetch images from GitHub and process them first.")
